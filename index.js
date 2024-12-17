@@ -9,30 +9,33 @@ const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 
 //midware use
 app.use(cors({
-  origin:['http://localhost:5173'],
-  credentials:true
+  origin: ['http://localhost:5173',
+    'https://job-protal-8a910.web.app',
+    'https://job-protal-8a910.firebaseapp.com/'
+  ],
+  credentials: true
 }))
 app.use(express.json())
 app.use(cookieparser())
 
 // verifly token cusstom 
-const veryflytoken = (req,res,next)=>{
+const veryflytoken = (req, res, next) => {
   const token = req.cookies?.token;
-  console.log('here is tokerkn',token)
-  if(!token){
-    return res.status(401).send({message:'unauthorize access'})
+  console.log('here is tokerkn', token)
+  if (!token) {
+    return res.status(401).send({ message: 'unauthorize access' })
   }
 
   // verify token
-  jwt.verify(token,process.env.ACCESS_TOKEN_SECRET,(err,decode)=>{
-    if(err){
-      return res.status(401).send({message:'unauthorize access'})
-    
+  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decode) => {
+    if (err) {
+      return res.status(401).send({ message: 'unauthorize access' })
+
     }
     next()
-   
+
   })
-  
+
 }
 
 
@@ -57,29 +60,31 @@ async function run() {
 
 
 
-// jwt relative api start here
+    // jwt relative api start here
 
-app.post('/jwt',async (req,res)=>{
-   const user = req.body;
-   const token = jwt.sign(user,process.env.ACCESS_TOKEN_SECRET,{expiresIn:'5h'})
-   res.cookie('token', token,{
-    httpOnly:true,
-    secure:false
-   })
-   .send({success:true})
-})
+    app.post('/jwt', async (req, res) => {
+      const user = req.body;
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '5h' })
+      res.cookie('token', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+      })
+        .send({ success: true })
+    })
 
-//logout clear cookie
-app.post('/logout', (req,res)=>{
-  res.clearCookie('token',
-    {
-      httpOnly:true,
-      secure: false
-    }
-  )
-  .send({success:true})
-})
-// jwt relative api end  here 
+    //logout clear cookie
+    app.post('/logout', (req, res) => {
+      res.clearCookie('token',
+        {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+        }
+      )
+        .send({ success: true })
+    })
+    // jwt relative api end  here 
 
 
 
@@ -125,84 +130,84 @@ app.post('/logout', (req,res)=>{
     //my post  job api
 
 
-    app.get('/myPostsJob',veryflytoken, async (req, res) => {
+    app.get('/myPostsJob', veryflytoken, async (req, res) => {
       const email = req.query.email;
       let query = {};
       if (email) {
-          query = { hr_email: email }
-          
+        query = { hr_email: email }
+
       }
       const cursor = jobsCollections.find(query);
-          const result = await cursor.toArray();
-          res.send(result);
-     
-  });
+      const result = await cursor.toArray();
+      res.send(result);
 
-  //check duplicate data in apply section
- 
-  app.post('/apply', async (req, res) => {
-    const data = req.body; // ক্লায়েন্ট থেকে আসা পুরো ডেটা
-  
-    try {
-      // ডুপ্লিকেট চেক
-      const existingData = await applicationCollections.findOne({ job_id: data.job_id});
-      if (existingData) {
-        return res.status(400).json({ message: "already apply in this job please try new one" }); 
+    });
+
+    //check duplicate data in apply section
+
+    app.post('/apply', async (req, res) => {
+      const data = req.body; // ক্লায়েন্ট থেকে আসা পুরো ডেটা
+
+      try {
+        // ডুপ্লিকেট চেক
+        const existingData = await applicationCollections.findOne({ job_id: data.job_id });
+        if (existingData) {
+          return res.status(400).json({ message: "already apply in this job please try new one" });
+        }
+
+        // ডেটা Target Collection-এ যোগ করুন
+        await applicationCollections.insertOne(data);
+        res.status(200).json({ message: "data added successfully" });
+      } catch (error) {
+        console.error("Error:", error);
+        res.status(500).json({ message: "Server Error!" });
       }
-  
-      // ডেটা Target Collection-এ যোগ করুন
-      await applicationCollections.insertOne(data);
-     res.status(200).json({ message: "data added successfully" });
-    } catch (error) {
-      console.error("Error:", error);
-      res.status(500).json({ message: "Server Error!" });
-    }
-  });
-  
-
-//  // my applicant post
-//  app.post('/apply', async (req, res) => {
-  
- 
-//   const apply = req.body
-
- 
-//  const find = await applicationCollections.findOne({_id: apply.job_id})
-//  if(find){
-//   return res.status(400).json({ message: "এই ডেটা ইতিমধ্যে যোগ করা হয়েছে!" });
-//  }
-//   else{
-    
-//   const result = await applicationCollections.insertOne(apply);
-//   res.send(result)
-//   }
-// })
+    });
 
 
-//my applicant get
+    //  // my applicant post
+    //  app.post('/apply', async (req, res) => {
 
-app.get('/my-application',veryflytoken, async(req,res)=>{
-  
-  const email = req.query.email;
-// console.log(req.cookies.token);
-  let query = {};
-  if(email){
-    query = { applicant_email: email }
-  }
-  
-  const result = await applicationCollections.find(query).toArray();
-  res.send(result)
 
-})
+    //   const apply = req.body
 
-//my application delete
 
-app.delete('/myApppDel/:id', async(req,res)=>{
-  const id = req.params.id;
-  const query = {_id: new ObjectId(id)};
-  const result = await applicationCollections.deleteOne(query)
-  res.send(result)
-})
+    //  const find = await applicationCollections.findOne({_id: apply.job_id})
+    //  if(find){
+    //   return res.status(400).json({ message: "এই ডেটা ইতিমধ্যে যোগ করা হয়েছে!" });
+    //  }
+    //   else{
+
+    //   const result = await applicationCollections.insertOne(apply);
+    //   res.send(result)
+    //   }
+    // })
+
+
+    //my applicant get
+
+    app.get('/my-application', veryflytoken, async (req, res) => {
+
+      const email = req.query.email;
+      // console.log(req.cookies.token);
+      let query = {};
+      if (email) {
+        query = { applicant_email: email }
+      }
+
+      const result = await applicationCollections.find(query).toArray();
+      res.send(result)
+
+    })
+
+    //my application delete
+
+    app.delete('/myApppDel/:id', async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await applicationCollections.deleteOne(query)
+      res.send(result)
+    })
 
   } finally {
 
